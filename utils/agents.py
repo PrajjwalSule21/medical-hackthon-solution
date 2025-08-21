@@ -119,13 +119,18 @@ Do NOT remove any row or data. Return valid Python code only.
     if not ok:
         raise ValueError(f"Generated code is invalid: {err}")
 
-    # Save script
+    # Save the script (optional, for download)
     script_path = write_script(raw_code, file_id)
 
-    # Run the script to produce cleaned CSV safely
-    subprocess.run(["python", script_path], check=True)
+    # 🔹 Execute code directly instead of subprocess
+    exec_globals = {}
+    try:
+        exec(raw_code, exec_globals)
+    except Exception as e:
+        raise RuntimeError(f"Error executing cleaning script: {e}")
 
     return raw_code, script_path, out_path
+
 
 
 # ----------------- Agent 3: QA Report -----------------
