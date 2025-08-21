@@ -4,7 +4,6 @@ from utils.agents import agent2_clean
 
 st.title("🧹 Clean Data & Download Script")
 
-# ----------------- Preconditions -----------------
 if "src_path" not in st.session_state or not st.session_state.src_path:
     st.warning("⚠️ Please upload and analyze a dataset first in the Upload & Analyze page.")
 elif "analysis" not in st.session_state or not st.session_state.analysis:
@@ -15,20 +14,16 @@ else:
     file_id = st.session_state.file_id
     src_path = st.session_state.src_path
 
-    # ----------------- Generate Cleaning Script & Clean Data -----------------
     if st.button("Generate Cleaning Script & Clean Data"):
         try:
             with st.spinner("Generating cleaning script and cleaning data with Agent 2..."):
-                # Agent 2 now generates script AND runs it to produce cleaned CSV
                 code, script_path, cleaned_path = agent2_clean(src_path, issues, mapping, file_id)
 
-                # Save paths in session_state
                 st.session_state.script_path = script_path
                 st.session_state.cleaned_out = cleaned_path
 
             st.success("✅ Cleaning script generated and cleaned data created!")
 
-            # ----------------- Show Script -----------------
             st.subheader("📄 Cleaning Script Preview")
             st.code(code, language="python")
 
@@ -42,7 +37,6 @@ else:
                         mime="text/x-python"
                     )
 
-            # ----------------- Show Cleaned Data -----------------
             if os.path.exists(cleaned_path):
                 df_cleaned = read_any(cleaned_path)
                 st.subheader("✅ Cleaned Data Preview (First 10 Rows)")

@@ -4,12 +4,10 @@ from utils.agents import agent1_analyze
 
 st.title("📂 Upload & Analyze")
 
-# ----------------- Session State Setup -----------------
 for key in ["file_id", "src_path", "analysis", "preview_data"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
-# ----------------- File Upload -----------------
 up = st.file_uploader("Upload CSV or XLSX", type=["csv", "xlsx", "xls"])
 if up:
     # Clean previous files if any
@@ -33,12 +31,10 @@ if up:
         st.error(f"Failed to read uploaded file: {e}")
         st.session_state.preview_data = None
 
-# ----------------- Show Preview -----------------
 if st.session_state.preview_data is not None:
     st.subheader("📄 Data Preview (First 10 Rows)")
     st.dataframe(st.session_state.preview_data)
 
-# ----------------- Run Analysis -----------------
 if st.session_state.src_path and st.button("Run Analysis"):
     try:
         with st.spinner("Analyzing dataset with Agent 1..."):
@@ -49,7 +45,6 @@ if st.session_state.src_path and st.button("Run Analysis"):
         st.error(f"Analysis failed: {e}")
         st.text(traceback.format_exc())
 
-# ----------------- Display Results -----------------
 if st.session_state.analysis:
     st.subheader("Detected Issues")
     issues = st.session_state.analysis.get("issues", [])

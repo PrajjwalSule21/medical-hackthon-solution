@@ -14,7 +14,6 @@ if not cleaned_file or not os.path.exists(cleaned_file):
 elif not src_file or not os.path.exists(src_file):
     st.warning("⚠️ Original source file is missing. Please upload and analyze first.")
 else:
-    # ----------------- Generate QA Report -----------------
     if st.button("Generate QA Report"):
         try:
             with st.spinner("Generating QA Report with Agent 3..."):
@@ -27,11 +26,9 @@ else:
             if os.path.exists(rpath):
                 st.success("✅ QA Report generated successfully!")
 
-                # Display report content
                 st.subheader("📄 QA Report Preview")
                 st.markdown(report)
 
-                # Download button for Markdown report
                 with open(rpath, "rb") as f:
                     st.download_button(
                         "📥 Download QA Report",
