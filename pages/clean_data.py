@@ -1,58 +1,63 @@
-import streamlit as st, os, traceback
-from utils.agents import agent2_generate
-from utils.helpers import write_script, run_script, read_any  # added read_any to read CSV/XLSX
+import streamlit as st, traceback, os
+from utils.helpers import read_any
+from utils.agents import agent2_clean
 
-st.title("🧹 Clean Data")
+st.title("🧹 Clean Data & Download Script")
 
 # ----------------- Preconditions -----------------
-if "analysis" not in st.session_state or not st.session_state.analysis:
-    st.warning("⚠️ Please run the analysis step first before cleaning.")
+if "src_path" not in st.session_state or not st.session_state.src_path:
+    st.warning("⚠️ Please upload and analyze a dataset first in the Upload & Analyze page.")
+elif "analysis" not in st.session_state or not st.session_state.analysis:
+    st.warning("⚠️ Please run Agent 1 analysis first.")
 else:
-    # ----------------- Generate Cleaning Script -----------------
-    if st.button("Generate Cleaning Script"):
+    issues = st.session_state.analysis.get("issues", [])
+    mapping = st.session_state.analysis.get("mapping", {})
+    file_id = st.session_state.file_id
+    src_path = st.session_state.src_path
+
+    # ----------------- Generate Cleaning Script & Clean Data -----------------
+    if st.button("Generate Cleaning Script & Clean Data"):
         try:
-            with st.spinner("Generating cleaning script with Agent 2..."):
-                code, out_path = agent2_generate(
-                    st.session_state.src_path,
-                    st.session_state.analysis.get("issues", []),
-                    st.session_state.analysis.get("mapping", {}),
-                    st.session_state.file_id
-                )
-                st.session_state.clean_code = code
-                st.session_state.clean_out = out_path
-            st.success("✅ Cleaning script generated!")
+            with st.spinner("Generating cleaning script and cleaning data with Agent 2..."):
+                # Agent 2 now generates script AND runs it to produce cleaned CSV
+                code, script_path, cleaned_path = agent2_clean(src_path, issues, mapping, file_id)
+
+                # Save paths in session_state
+                st.session_state.script_path = script_path
+                st.session_state.cleaned_out = cleaned_path
+
+            st.success("✅ Cleaning script generated and cleaned data created!")
+
+            # ----------------- Show Script -----------------
+            st.subheader("📄 Cleaning Script Preview")
             st.code(code, language="python")
-        except Exception as e:
-            st.error(f"Error generating cleaning script: {e}")
-            st.text(traceback.format_exc())
 
-    # ----------------- Run Cleaning Script -----------------
-    if "clean_code" in st.session_state and st.button("Run Cleaning Script"):
-        try:
-            script_path = write_script(st.session_state.clean_code, st.session_state.file_id)
-            with st.spinner("Running cleaning script..."):
-                code, out, err = run_script(script_path)
+            # Download script
+            if os.path.exists(script_path):
+                with open(script_path, "rb") as f:
+                    st.download_button(
+                        "📥 Download Cleaning Script",
+                        data=f,
+                        file_name=f"clean_{file_id}.py",
+                        mime="text/x-python"
+                    )
 
-            st.subheader("Execution Logs")
-            if out:
-                st.text(out)
-            if err:
-                st.error(err)
+            # ----------------- Show Cleaned Data -----------------
+            if os.path.exists(cleaned_path):
+                df_cleaned = read_any(cleaned_path)
+                st.subheader("✅ Cleaned Data Preview (First 10 Rows)")
+                st.dataframe(df_cleaned.head(10))
 
-            if code == 0 and os.path.exists(st.session_state.clean_out):
-                st.success(f"✅ Cleaned file saved: {st.session_state.clean_out}")
-                
-                # ----------------- Show Preview of Cleaned Data -----------------
-                try:
-                    cleaned_df = read_any(st.session_state.clean_out)
-                    st.subheader("📄 Preview of Cleaned Data (First 10 Rows)")
-                    st.dataframe(cleaned_df.head(10))
-                except Exception as e:
-                    st.warning(f"Could not read cleaned file for preview: {e}")
-
+                with open(cleaned_path, "rb") as f:
+                    st.download_button(
+                        "📥 Download Cleaned CSV",
+                        data=f,
+                        file_name=f"cleaned_{file_id}.csv",
+                        mime="text/csv"
+                    )
             else:
-                st.error("Cleaning script failed. Check logs above.")
+                st.error("Cleaned file was not created successfully.")
 
         except Exception as e:
-            st.error(f"Error running cleaning script: {e}")
+            st.error(f"Error generating cleaning script or cleaning data: {e}")
             st.text(traceback.format_exc())

@@ -1,5 +1,5 @@
 import streamlit as st, uuid, os, traceback
-from utils.helpers import UPLOAD_DIR, read_any
+from utils.helpers import UPLOAD_DIR, read_any, cleanup_files
 from utils.agents import agent1_analyze
 
 st.title("📂 Upload & Analyze")
@@ -12,6 +12,10 @@ for key in ["file_id", "src_path", "analysis", "preview_data"]:
 # ----------------- File Upload -----------------
 up = st.file_uploader("Upload CSV or XLSX", type=["csv", "xlsx", "xls"])
 if up:
+    # Clean previous files if any
+    if st.session_state.file_id:
+        cleanup_files(st.session_state.file_id)
+
     fid = str(uuid.uuid4())
     st.session_state.file_id = fid
     ext = os.path.splitext(up.name)[1]
@@ -23,7 +27,7 @@ if up:
     # Read and store preview data
     try:
         df_preview = read_any(path)
-        st.session_state.preview_data = df_preview.head(10)  # Show first 10 rows
+        st.session_state.preview_data = df_preview.head(10)
         st.success(f"✅ File uploaded: {path}")
     except Exception as e:
         st.error(f"Failed to read uploaded file: {e}")
