@@ -81,8 +81,16 @@ If a column contains datetime, suggest splitting into <col>_date and <col>_time 
 
 # ----------------- Agent 2: Cleaning -----------------
 def agent2_clean(src_path, issues, mapping, file_id):
+    """
+    Agent 2: Generates a cleaning script and internally cleans the data
+    without executing the script externally. Preserves all rows, handles
+    datetime and numeric columns, applies feature engineering, and returns
+    cleaned file path.
+    """
     client = get_client()
     out_path = os.path.join(CLEANED_DIR, f"cleaned_{file_id}.csv")
+    
+    # Context passed to the model
     ctx = {
         "src_path": src_path,
         "issues": issues,
@@ -90,22 +98,29 @@ def agent2_clean(src_path, issues, mapping, file_id):
         "out_path": out_path
     }
 
+    # System prompt instructs LLM to produce script only but also apply cleaning internally
     system_prompt = """
-You are a Python data engineer.
-Return ONLY a Python script that:
-1. Reads src_path (CSV/XLSX)
-2. Applies all Agent 1 issues/mapping
-3. Handles datetime columns:
-   - Convert to pd.to_datetime(col, errors='coerce', utc=True)
+You are a senior Python data engineer and data-quality expert.
+
+Task:
+1. Read the dataset at `src_path` (CSV/XLSX).
+2. Apply all cleaning suggestions in `issues` and terminology mappings in `mapping`.
+3. Handle datetime columns properly:
+   - Convert to datetime with pd.to_datetime(errors='coerce', utc=True)
    - Create <col>_date (YYYY-MM-DD) and <col>_time (HH:MM:SS)
-   - Do NOT drop original column unless instructed
-4. Fill missing values only if logically correct
-5. Preserve all rows, do not drop any row
-6. Apply terminology mappings safely
-7. Save cleaned CSV to out_path
-Do NOT remove any row or data. Return valid Python code only.
+   - Preserve original datetime columns unless explicitly instructed to drop.
+4. Handle numeric and categorical columns safely:
+   - Convert numeric columns to numeric types
+   - Apply terminology mapping for categorical columns
+   - Fill missing values only if logically correct
+5. Preserve all original rows; do not drop any data.
+6. Apply any feature engineering required based on the issues (e.g., datetime split, derived flags, encoded categories).
+7. Generate a valid Python script that reads `src_path`, performs the transformations, and writes cleaned CSV to `out_path`.
+8. Return ONLY the Python script inside ```python ... ``` markdown.
+9. DO NOT execute code externally; instead, you will internally process the data using the instructions.
 """
 
+    # Call the GPT-5-mini model
     resp = client.chat.completions.create(
         model="gpt-5-mini",
         messages=[
@@ -114,22 +129,35 @@ Do NOT remove any row or data. Return valid Python code only.
         ]
     )
 
+    # Extract Python code from the response
     raw_code = _extract_code_from_text(resp.choices[0].message.content)
     ok, err = _is_valid_python(raw_code)
     if not ok:
         raise ValueError(f"Generated code is invalid: {err}")
 
-    # Save the script (optional, for download)
+    # Save the script for preview/download
     script_path = write_script(raw_code, file_id)
 
-    # 🔹 Execute code directly instead of subprocess
-    exec_globals = {}
+    # 🔹 Internally execute cleaning logic using LLM-powered approach
     try:
+        import pandas as pd
+        df = read_any(src_path)  # Read raw data
+
+        # Prepare namespace for exec
+        exec_globals = {"pd": pd, "df": df, "issues": issues, "mapping": mapping, "out_path": out_path}
         exec(raw_code, exec_globals)
+
+        # After execution, ensure cleaned CSV is written
+        if "df" in exec_globals:
+            df_cleaned = exec_globals["df"]
+            df_cleaned.to_csv(out_path, index=False)
+        else:
+            raise RuntimeError("Cleaning script did not produce a 'df' variable.")
     except Exception as e:
-        raise RuntimeError(f"Error executing cleaning script: {e}")
+        raise RuntimeError(f"Error during internal cleaning execution: {e}")
 
     return raw_code, script_path, out_path
+
 
 
 
